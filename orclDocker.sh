@@ -42,13 +42,15 @@ function start_up()
     echo "#                                              #"
     echo "#          2 ==   Stop Oracle docker image     #"
     echo "#                                              #"
-    echo "#          3 ==   SQLPlus nolog connect        #"
+    echo "#          3 ==   Bash access                  #"
     echo "#                                              #"
-    echo "#          4 ==   SQLPlus SYSDBA               #"
+    echo "#          4 ==   SQLPlus nolog connect        #"
     echo "#                                              #"
-    echo "#          5 ==   SQLPlus user                 #"
+    echo "#          5 ==   SQLPlus SYSDBA               #"
     echo "#                                              #"
-    echo "#          6 ==   Do NOTHING                   #"
+    echo "#          6 ==   SQLPlus user                 #"
+    echo "#                                              #"
+    echo "#          7 ==   Do NOTHING                   #"
     echo "#                                              #"
     echo "################################################"
     echo 
@@ -71,8 +73,8 @@ function do_nothing()
     echo "So...you want to quit...yes? "
     echo "Enter yes or no"
     echo "################################################"
-    read DOWHAT
-    if [[ $DOWHAT = yes ]]; then
+    read doWhat
+    if [[ $doWhat = yes ]]; then
         echo "Yes"
         echo "Bye! ¯\_(ツ)_/¯ " 
         exit 1
@@ -95,8 +97,41 @@ function checkDocker()
     fi
 }
 
+function checkOrclexists()
+{
+    checkDocker
+    # get oracle image if present
+    export uThere=$(docker images --no-trunc | grep oracle | awk '{print $3}' | cut -d : -f 2 )
+    echo $uThere
+
+    if [ -z "$uThere" ]; then
+        echo "Oracle docker image not found."
+    else
+        echo "Oracle docker image present."
+        echo "Would you like to start it?"
+        echo "Enter yes or no:"
+        read theChoice
+        if [ $theChoice = yes ]; then
+            echo "Yes"
+        else
+            echo "No"
+            start_up
+        fi
+
+    fi
+}
 
 function startOracle()
+{
+    export orclImage=$(docker images --no-trunc | grep oracle | awk '{print $3}' | cut -d : -f 2 )
+    echo $orclImage
+    docker run -itd $orclImage
+    export runningOrcl=$(docker ps --no-trunc --format '{"name":"{{.Names}}"}'    | cut -d : -f 2 | sed 's/"//g' | sed 's/}//g')
+    echo "Oracle is running as: "$runningOrcl 
+
+}
+
+function old_startOracle()
 {
 
     checkDocker
@@ -190,15 +225,18 @@ case $whatwhat in
         stopOracle
         ;;
     3)
+        bashAccess
+        ;;   
+    4)
         sqlPlusnolog
         ;;
-    4) 
+    5) 
         sysDba
         ;;
-    5)
+    6)
         sqlPlususer
         ;;
-    6)
+    7)
         do_nothing
         ;;
 esac
