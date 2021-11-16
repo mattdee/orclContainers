@@ -158,7 +158,7 @@ function startOracle()
     # else
         export orclImage=$(docker images --no-trunc | grep oracle | awk '{print $3}' | cut -d : -f 2 )
         echo $orclImage
-        docker run -itd --network="bridge" -p 1521:1521 -p 5500:5500  $orclImage
+        docker run -itd --name Oracle_DB_Container --network="bridge" -p 1521:1521 -p 5500:5500  $orclImage 
         export runningOrcl=$(docker ps --no-trunc --format '{"name":"{{.Names}}"}'    | cut -d : -f 2 | sed 's/"//g' | sed 's/}//g')
         echo "Oracle is running as: "$runningOrcl
         echo "Please be patient as it takes time for the container to start..."
@@ -200,6 +200,16 @@ function bashAccess()
     export orclImage=$(docker ps --no-trunc --format "table {{.ID}}\t{{.Ports}}" | grep 1521 | awk '{print $1}')
     docker exec -it $orclImage /bin/bash
 }
+
+function rootAccess()
+{
+    checkDocker
+    #export orclImage=$(docker ps --format "table {{.Image}}\t{{.Ports}}\t{{.Names}}"| grep -i oracle  | awk '{print $4}')
+    # this works by greping the known oracle database port
+    export orclImage=$(docker ps --no-trunc --format "table {{.ID}}\t{{.Ports}}" | grep 1521 | awk '{print $1}')
+    docker exec -it -u 0 $orclImage /bin/bash
+}
+
 
 
 function sqlPlusnolog()
@@ -268,6 +278,9 @@ case $whatwhat in
         ;;
     8) 
         cleanVolumes
+        ;;
+    9)
+        rootAccess
         ;;
 esac
 
