@@ -92,7 +92,6 @@ function countDown()
     urls="$@"
  
     msg="Please wait for Oracle to start ...${1}..."
-    clear
     tput cup $row $col
     echo -n "$msg"
     l=${#msg}
@@ -103,6 +102,7 @@ function countDown()
             echo -n "$i"
             sleep 1
          done
+    startUp
 }
 
 function checkDocker()
@@ -150,11 +150,12 @@ function startOracle()
     # example 
     # docker run -d --network="bridge" -p 1521:1521 -p 5500:5500 -it --name Oracle_DB_Container store/oracle/database-enterprise:12.2.0.1
 
-    checkOrclexists
-    if [ -z $uThere ]; then
-        echo $uThere
-        echo "Oracle is going to restart"
-    else
+    # checkOrclexists
+    # export uThere=$(docker container ls -a --no-trunc --format "table {{.ID}}\t {{.Names}}\t {{.Command}}\t" | grep -i oracle  | awk '{print $2}')
+    # if [ -z $uThere ]; then
+    #     echo $uThere
+    #     echo "Oracle is going to restart"
+    # else
         export orclImage=$(docker images --no-trunc | grep oracle | awk '{print $3}' | cut -d : -f 2 )
         echo $orclImage
         docker run -itd --network="bridge" -p 1521:1521 -p 5500:5500  $orclImage
@@ -162,7 +163,7 @@ function startOracle()
         echo "Oracle is running as: "$runningOrcl
         echo "Please be patient as it takes time for the container to start..."
         countDown
-    fi
+    #fi
 
 }
 
