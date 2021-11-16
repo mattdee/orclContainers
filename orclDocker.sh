@@ -23,7 +23,7 @@
    #===================================================================================
 
 
-function start_up()
+function startUp()
 {
     clear screen
     echo "##########################################################"
@@ -61,7 +61,7 @@ function start_up()
 #       then
 #       echo "Please enter a valid choice"
 #       sleep 3
-#       start_up
+#       startUp
 #   fi
     
 }
@@ -80,7 +80,7 @@ function doNothing()
         exit 1
     else
         echo "No"
-        start_up
+        startUp
     fi
     
 }
@@ -119,10 +119,12 @@ function checkDocker()
 
 function checkOrclexists()
 {
+  # docker container ls -a --no-trunc --format "table {{.ID}}\t {{.Names}}\t {{.Command}}\t" | grep -i oracle  | awk '{print $2}'
+
     checkDocker
     # get oracle image if present
-    export uThere=$(docker images --no-trunc | grep oracle | awk '{print $3}' | cut -d : -f 2 )
-    echo $uThere
+    export uThere=$(docker container ls -a --no-trunc --format "table {{.ID}}\t {{.Names}}\t {{.Command}}\t" | grep -i oracle  | awk '{print $2}')
+    echo "Oracle container found with name: " $uThere
 
     if [ -z "$uThere" ]; then
         echo "Oracle docker container not found."
@@ -133,9 +135,11 @@ function checkOrclexists()
         read theChoice
         if [ $theChoice = yes ]; then
             echo "Yes"
+            docker restart $uThere
         else
             echo "No"
-            start_up
+            echo "Okay dokay ... "
+            startUp
         fi
 
     fi
@@ -146,42 +150,22 @@ function startOracle()
     # example 
     # docker run -d --network="bridge" -p 1521:1521 -p 5500:5500 -it --name Oracle_DB_Container store/oracle/database-enterprise:12.2.0.1
 
-    export orclImage=$(docker images --no-trunc | grep oracle | awk '{print $3}' | cut -d : -f 2 )
-    echo $orclImage
-    docker run -itd --network="bridge" -p 1521:1521 -p 5500:5500  $orclImage
-    export runningOrcl=$(docker ps --no-trunc --format '{"name":"{{.Names}}"}'    | cut -d : -f 2 | sed 's/"//g' | sed 's/}//g')
-    echo "Oracle is running as: "$runningOrcl
-    echo "Please be patient as it takes time for the container to start..."
-    countDown 
-
-}
-
-function old_startOracle()
-{
-
-    checkDocker
-
-    #need to add logic to check if running and skip if true
-
-    export runningOrcl=$(docker ps --no-trunc | grep -i oracle | awk '{print $1}')
-
-    if [ -z "$runningOrcl" ]; then
-        echo "Oracle not running."
-        echo "Starting Oracle...please wait"
-        docker run -d -it  store/oracle/database-enterprise:12.2.0.1
-        docker ps --format "table {{.Image}}\t{{.Ports}}\t{{.Names}}" 
-        export orclImage=$(docker ps --format "table {{.Image}}\t{{.Ports}}\t{{.Names}}"| grep -i oracle  | awk '{print $4}')
-        echo "Oracle docker name: "$orclImage
+    checkOrclexists
+    if [ -z $uThere ]; then
+        echo $uThere
+        echo "Oracle is going to restart"
     else
-        export orclImage=$(docker ps --format "table {{.Image}}\t{{.Ports}}\t{{.Names}}"| grep -i oracle  | awk '{print $4}')
-        echo "Oracle is running as: "$orclImage 
+        export orclImage=$(docker images --no-trunc | grep oracle | awk '{print $3}' | cut -d : -f 2 )
+        echo $orclImage
+        docker run -itd --network="bridge" -p 1521:1521 -p 5500:5500  $orclImage
+        export runningOrcl=$(docker ps --no-trunc --format '{"name":"{{.Names}}"}'    | cut -d : -f 2 | sed 's/"//g' | sed 's/}//g')
+        echo "Oracle is running as: "$runningOrcl
+        echo "Please be patient as it takes time for the container to start..."
+        countDown
     fi
 
-    echo "This will take some time, please wait..."
-    sleep 30
-
-    start_up
 }
+
 
 function stopOracle()
 {
@@ -196,12 +180,16 @@ function stopOracle()
         docker stop $i
     done
 
+    cleanVolumes
+
 }
+
 
 function cleanVolumes()
 {
-    docker volume prune
+    docker volume prune -f 
 }
+
 
 function bashAccess()
 {
@@ -254,7 +242,7 @@ function sqlPlususer()
 
 
 # Let's go to work
-start_up
+startUp
 case $whatwhat in
     1) 
         startOracle
