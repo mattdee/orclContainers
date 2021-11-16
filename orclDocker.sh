@@ -91,7 +91,7 @@ function countDown()
     col=2
     urls="$@"
  
-    msg="Please wait ${1}..."
+    msg="Please wait for Oracle to start ...${1}..."
     clear
     tput cup $row $col
     echo -n "$msg"
