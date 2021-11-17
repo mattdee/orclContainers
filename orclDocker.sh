@@ -5,7 +5,7 @@
    #
    #         FILE: orclDocker.sh
    #
-   #        USAGE: select an option or do all
+   #        USAGE: run it
    #
    #  DESCRIPTION:
    #      OPTIONS:  
