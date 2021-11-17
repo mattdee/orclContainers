@@ -89,8 +89,8 @@ function countDown()
 {
     row=2
     col=2
-    urls="$@"
- 
+    
+    clear 
     msg="Please wait for Oracle to start ...${1}..."
     tput cup $row $col
     echo -n "$msg"
@@ -102,6 +102,13 @@ function countDown()
             echo -n "$i"
             sleep 1
          done
+    startUp
+}
+
+function badChoice()
+{
+    echo "Invalid choice, please try again..."
+    sleep 5
     startUp
 }
 
@@ -117,53 +124,30 @@ function checkDocker()
     fi
 }
 
-function checkOrclexists()
-{
-  # docker container ls -a --no-trunc --format "table {{.ID}}\t {{.Names}}\t {{.Command}}\t" | grep -i oracle  | awk '{print $2}'
 
+function startOracle() # start or restart the container named Oracle_DB_Container
+{   
     checkDocker
-    # get oracle image if present
-    export uThere=$(docker container ls -a --no-trunc --format "table {{.ID}}\t {{.Names}}\t {{.Command}}\t" | grep -i oracle  | awk '{print $2}')
-    echo "Oracle container found with name: " $uThere
+    # check to see if Oracle_DB_Container is running and if running exit
+    export orclRunning=$(docker ps --no-trunc --format "table {{.ID}}\t {{.Names}}\t" | grep -i Oracle_DB_Container  | awk '{print $2}' )
+    export orclPresent=$(docker container ls -a --no-trunc --format "table {{.ID}}\t {{.Names}}\t" | grep -i Oracle_DB_Container  | awk '{print $2}')
 
-    if [ -z "$uThere" ]; then
-        echo "Oracle docker container not found."
+    if [ "$orclRunning" == "Oracle_DB_Container" ]; then
+        echo "Oracle docker container is running, please select other option."
+        sleep 5
+        startUp
+    elif [ "$orclPresent" == "Oracle_DB_Container" ]; then
+        echo "Oracle docker container found, restarting..."
+        docker restart $orclPresent
+        countDown
     else
-        echo "Oracle docker container present."
-        echo "Would you like to start it?"
-        echo "Enter yes or no:"
-        read theChoice
-        if [ $theChoice = yes ]; then
-            echo "Yes"
-            docker restart $uThere
-        else
-            echo "No"
-            echo "Okay dokay ... "
-            startUp
-        fi
-
-    fi
-}
-
-function startOracle()
-{
-    # example 
-    # docker run -d --network="bridge" -p 1521:1521 -p 5500:5500 -it --name Oracle_DB_Container store/oracle/database-enterprise:12.2.0.1
-
-    # checkOrclexists
-    # export uThere=$(docker container ls -a --no-trunc --format "table {{.ID}}\t {{.Names}}\t {{.Command}}\t" | grep -i oracle  | awk '{print $2}')
-    # if [ -z $uThere ]; then
-    #     echo $uThere
-    #     echo "Oracle is going to restart"
-    # else
-        export orclImage=$(docker images --no-trunc | grep oracle | awk '{print $3}' | cut -d : -f 2 )
-        echo $orclImage
-        docker run -itd --name Oracle_DB_Container --network="bridge" -p 1521:1521 -p 5500:5500  $orclImage 
+        echo "No Oracle docker image found, provisioning..."
+        docker run -d --network="bridge" -p 1521:1521 -p 5500:5500 -it --name Oracle_DB_Container store/oracle/database-enterprise:12.2.0.1
         export runningOrcl=$(docker ps --no-trunc --format '{"name":"{{.Names}}"}'    | cut -d : -f 2 | sed 's/"//g' | sed 's/}//g')
         echo "Oracle is running as: "$runningOrcl
         echo "Please be patient as it takes time for the container to start..."
         countDown
-    #fi
+    fi
 
 }
 
@@ -282,6 +266,8 @@ case $whatwhat in
     9)
         rootAccess
         ;;
+    *) 
+        badChoice
 esac
 
 
