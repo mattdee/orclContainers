@@ -22,7 +22,6 @@
    #
    #===================================================================================
 
-
 function startUp()
 {
     clear screen
@@ -64,6 +63,13 @@ function startUp()
 #       startUp
 #   fi
     
+}
+
+function helpMe()
+{
+    echo "Help wanted..."
+    sleep 5
+    startUp
 }
 
 function doNothing()
@@ -250,7 +256,26 @@ function sqlPlususer()
     (CONNECT_DATA=(SERVER=DEDICATED)(SERVICE_NAME=ORCLPDB1.localdomain)))'"
 }
 
-
+# process arguements to bypass the menu
+if [ "$1" = "start" ]; then
+    startOracle
+elif 
+    [ "$1" = "stop" ]; then
+        stopOracle
+    elif 
+        [ "$1" = "bash" ]; then
+            bashAccess
+    elif 
+        [ "$1" = "sql" ]; then
+        sqlPlususer
+    elif
+        [ "$1" = "help" ]; then
+            helpMe
+    elif [ -z "$1" ]; then
+        echo "No args...proceed with menu"
+        sleep 3
+        startUp
+    fi
 
 
 # Let's go to work
