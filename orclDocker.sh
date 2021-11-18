@@ -108,7 +108,7 @@ function countDown()
             echo -n "$i"
             sleep 1
          done
-    startUp
+    #startUp
 }
 
 function badChoice()
