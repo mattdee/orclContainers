@@ -279,7 +279,6 @@ elif
     elif [ -z "$1" ]; then
         echo "No args...proceed with menu"
         #sleep 3
-        startUp
 fi
 
 
