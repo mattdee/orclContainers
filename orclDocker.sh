@@ -175,6 +175,8 @@ function startOracle() # start or restart the container named Oracle_DB_Containe
         echo "Oracle is running as: "$runningOrcl
         echo "Please be patient as it takes time for the container to start..."
         countDown
+        echo "Installing useful tools after provisioning container..."
+        installUtils
     fi
 
 }
