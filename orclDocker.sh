@@ -258,24 +258,29 @@ function sqlPlususer()
 
 # process arguements to bypass the menu
 if [ "$1" = "start" ]; then
+    echo "Starting container..."
     startOracle
 elif 
     [ "$1" = "stop" ]; then
+        echo "Stopping container..."
         stopOracle
     elif 
         [ "$1" = "bash" ]; then
+            echo "Attempting bash acess..."
             bashAccess
     elif 
         [ "$1" = "sql" ]; then
+        echo "Attempting SQLPlus access..."
         sqlPlususer
     elif
         [ "$1" = "help" ]; then
+            echo "Providing help..."
             helpMe
     elif [ -z "$1" ]; then
         echo "No args...proceed with menu"
-        sleep 3
+        #sleep 3
         startUp
-    fi
+fi
 
 
 # Let's go to work
