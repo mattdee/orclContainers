@@ -201,18 +201,14 @@ function cleanVolumes()
 function bashAccess()
 {
     checkDocker
-    #export orclImage=$(docker ps --format "table {{.Image}}\t{{.Ports}}\t{{.Names}}"| grep -i oracle  | awk '{print $4}')
-    # this works by greping the known oracle database port
-    export orclImage=$(docker ps --no-trunc --format "table {{.ID}}\t{{.Ports}}" | grep 1521 | awk '{print $1}')
+    export orclImage=$(docker ps --no-trunc --format "table {{.ID}}\t {{.Names}}\t" | grep -i Oracle_DB_Container  | awk '{print $2}' )
     docker exec -it $orclImage /bin/bash
 }
 
 function rootAccess()
 {
     checkDocker
-    #export orclImage=$(docker ps --format "table {{.Image}}\t{{.Ports}}\t{{.Names}}"| grep -i oracle  | awk '{print $4}')
-    # this works by greping the known oracle database port
-    export orclImage=$(docker ps --no-trunc --format "table {{.ID}}\t{{.Ports}}" | grep 1521 | awk '{print $1}')
+    export orclImage=$(docker ps --no-trunc --format "table {{.ID}}\t {{.Names}}\t" | grep -i Oracle_DB_Container  | awk '{print $2}' )
     docker exec -it -u 0 $orclImage /bin/bash
 }
 
@@ -221,15 +217,14 @@ function rootAccess()
 function sqlPlusnolog()
 {
     checkDocker
-    #export orclImage=$(docker ps --format "table {{.Image}}\t{{.Ports}}\t{{.Names}}"| grep -i oracle  | awk '{print $4}')
-    export orclImage=$(docker ps --no-trunc --format "table {{.ID}}\t{{.Ports}}" | grep 1521 | awk '{print $1}')
+    export orclImage=$(docker ps --no-trunc --format "table {{.ID}}\t {{.Names}}\t" | grep -i Oracle_DB_Container  | awk '{print $2}' )
     docker exec -it $orclImage bash -c "source /home/oracle/.bashrc; rlwrap sqlplus /nolog"
 }
 
 function sysDba()
 {
     checkDocker
-    export orclImage=$(docker ps --no-trunc --format "table {{.ID}}\t{{.Ports}}" | grep 1521 | awk '{print $1}')
+    export orclImage=$(docker ps --no-trunc --format "table {{.ID}}\t {{.Names}}\t" | grep -i Oracle_DB_Container  | awk '{print $2}' )
     docker exec -it $orclImage bash -c "source /home/oracle/.bashrc; rlwrap sqlplus sys/Oradoc_db1@'(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=127.0.0.1)(PORT=1521))
     (CONNECT_DATA=(SERVER=DEDICATED)(SERVICE_NAME=ORCLPDB1.localdomain)))' as sysdba"
 }
@@ -237,7 +232,7 @@ function sysDba()
 function createMatt()
 {
     checkDocker
-    export orclImage=$(docker ps --no-trunc --format "table {{.ID}}\t{{.Ports}}" | grep 1521 | awk '{print $1}')
+    export orclImage=$(docker ps --no-trunc --format "table {{.ID}}\t {{.Names}}\t" | grep -i Oracle_DB_Container  | awk '{print $2}' )
     docker exec -it $orclImage bash -c "source /home/oracle/.bashrc; rlwrap sqlplus sys/Oradoc_db1@'(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=127.0.0.1)(PORT=1521))
     (CONNECT_DATA=(SERVER=DEDICATED)(SERVICE_NAME=ORCLPDB1.localdomain)))' as sysdba <<EOF
     grant sysdba,dba to matt identified by matt;
@@ -249,7 +244,7 @@ EOF"
 function sqlPlususer()
 {
     checkDocker
-    export orclImage=$(docker ps --no-trunc --format "table {{.ID}}\t{{.Ports}}" | grep 1521 | awk '{print $1}')
+    export orclImage=$(docker ps --no-trunc --format "table {{.ID}}\t {{.Names}}\t" | grep -i Oracle_DB_Container  | awk '{print $2}' )
     createMatt
     docker exec -it $orclImage bash -c "source /home/oracle/.bashrc; rlwrap sqlplus matt/matt@'(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=127.0.0.1)(PORT=1521))
     (CONNECT_DATA=(SERVER=DEDICATED)(SERVICE_NAME=ORCLPDB1.localdomain)))'"
