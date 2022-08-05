@@ -149,6 +149,9 @@ function installUtils()
     export orclRunning=$(docker ps --no-trunc --format "table {{.ID}}\t {{.Names}}\t" | grep -i Oracle_DB_Container  | awk '{print $2}' )
     docker exec -it -u 0 $orclRunning /usr/bin/rpm -ivh https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
     docker exec -it -u 0 $orclRunning /usr/bin/yum install -y sudo which java wget rlwrap htop
+    docker exec $orclRunning wget -O /tmp/PS1.sh https://www.dropbox.com/s/7paaoio8ts0wsis/PS1.sh
+    docker exec $orclRunning bash /tmp/PS1.sh
+    docker exec $orclRunning wget -O /u01/app/oracle/product/12.2.0/dbhome_1/sqlplus/admin/glogin.sql https://www.dropbox.com/s/sv1hla5l3nva9s7/glogin.sql
     startUp
 }
 
