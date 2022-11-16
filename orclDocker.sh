@@ -130,7 +130,7 @@ function checkDocker()
     fi
 }
 
-function copyFile()
+function copyFileIn()
 {
     checkDocker
     export orclRunning=$(docker ps --no-trunc --format "table {{.ID}}\t {{.Names}}\t" | grep -i Oracle_DB_Container  | awk '{print $2}' )
@@ -142,6 +142,25 @@ function copyFile()
     docker cp $thePath/$theFile $orclRunning:/tmp
 
 }
+
+function copyFileOut()
+{
+    checkDocker
+    export orclRunning=$(docker ps --no-trunc --format "table {{.ID}}\t {{.Names}}\t" | grep -i Oracle_DB_Container  | awk '{print $2}' )
+    echo $orclRunning
+    echo "Please enter the ABSOLUTE PATH of file in the CONTAINER you want copied out: "
+    read thePath
+    echo "Please enter the FILE NAME you want copied out: "
+    read theFile
+    echo "Please enter the ABSOLUTE PATH on the host system to copy the file to:"
+    read hostPath
+    echo "Copying info: " $orclRunning:$thePath/$theFile
+    echo "Writing to: " $hostPath
+
+    docker cp $orclRunning:$thePath/$theFile $hostPath
+
+}
+
 
 function installUtils()
 {
@@ -321,7 +340,10 @@ case $whatwhat in
         installUtils
         ;;
     11)
-        copyFile
+        copyFileIn
+        ;;
+    12) 
+        copyFileOut
         ;;
     *) 
         badChoice
