@@ -130,7 +130,7 @@ function checkDocker()
     fi
 }
 
-function copyFileIn()
+function copyFile()
 {
     checkDocker
     export orclRunning=$(docker ps --no-trunc --format "table {{.ID}}\t {{.Names}}\t" | grep -i Oracle_DB_Container  | awk '{print $2}' )
@@ -143,30 +143,11 @@ function copyFileIn()
 
 }
 
-function copyFileOut()
-{
-    checkDocker
-    export orclRunning=$(docker ps --no-trunc --format "table {{.ID}}\t {{.Names}}\t" | grep -i Oracle_DB_Container  | awk '{print $2}' )
-    echo $orclRunning
-    echo "Please enter the ABSOLUTE PATH of file in the CONTAINER you want copied out: "
-    read thePath
-    echo "Please enter the FILE NAME you want copied out: "
-    read theFile
-    echo "Please enter the ABSOLUTE PATH on the host system to copy the file to:"
-    read hostPath
-    echo "Copying info: " $orclRunning:$thePath/$theFile
-    echo "Writing to: " $hostPath
-
-    docker cp $orclRunning:$thePath/$theFile $hostPath
-
-}
-
-
 function installUtils()
 {
     checkDocker
     export orclRunning=$(docker ps --no-trunc --format "table {{.ID}}\t {{.Names}}\t" | grep -i Oracle_DB_Container  | awk '{print $2}' )
-    docker exec -it -u 0 $orclRunning /usr/bin/rpm -ivh https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
+    docker exec -it -u 0 $orclRunning /usr/bin/rpm -ivh https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm
     docker exec -it -u 0 $orclRunning /usr/bin/yum install -y sudo which java wget rlwrap htop
     docker exec $orclRunning wget -O /tmp/PS1.sh https://www.dropbox.com/s/7paaoio8ts0wsis/PS1.sh
     docker exec $orclRunning bash /tmp/PS1.sh
@@ -192,7 +173,7 @@ function startOracle() # start or restart the container named Oracle_DB_Containe
         countDown
     else
         echo "No Oracle docker image found, provisioning..."
-        docker run -d --network="bridge" -p 1521:1521 -p 5500:5500 -p 8080:8080 -it --name Oracle_DB_Container store/oracle/database-enterprise:12.2.0.1
+        docker run -d --network="bridge" -p 1521:1521 -p 5500:5500 -p 8080:8080 -it --name Oracle_DB_Container container-registry.oracle.com/database/free
         export runningOrcl=$(docker ps --no-trunc --format '{"name":"{{.Names}}"}'    | cut -d : -f 2 | sed 's/"//g' | sed 's/}//g')
         echo "Oracle is running as: "$runningOrcl
         echo "Please be patient as it takes time for the container to start..."
@@ -340,10 +321,7 @@ case $whatwhat in
         installUtils
         ;;
     11)
-        copyFileIn
-        ;;
-    12) 
-        copyFileOut
+        copyFile
         ;;
     *) 
         badChoice
