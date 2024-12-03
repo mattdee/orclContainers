@@ -389,6 +389,8 @@ function setupORDS()
         
     # make temp passwd file
     docker exec -i -u 0 $orclImage /bin/bash -c "echo 'Oradoc_db1' > /tmp/orclpwd"
+
+    echo "Configuring ORDS..."
     
     # ORDS silent set up
     docker exec -i $orclImage /bin/bash -c "/home/oracle/ords/bin/ords --config /home/oracle/ords_config install --admin-user SYS --db-hostname localhost --db-port 1521 --db-servicename FREEPDB1 --log-folder /tmp/ --feature-sdw true --feature-db-api true --feature-rest-enabled-sql true --password-stdin </tmp/orclpwd"
