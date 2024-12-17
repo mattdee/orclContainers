@@ -225,9 +225,7 @@ function installUtils()
     podman exec -it -u 0 $orclRunning /usr/bin/yum update -y
 
     podman exec -it -u 0 $orclRunning /usr/bin/yum install -y sudo which java-17-openjdk wget htop lsof zip unzip rlwrap git
-    # podman exec -it -u 0 $orclRunning /usr/bin/rpm -ivh https://yum.oracle.com/repo/OracleLinux/OL8/oracle/software/x86_64/getPackage/ords-24.1.1-4.el8.noarch.rpm
-    # new ords version
-    # https://download.oracle.com/otn_software/java/ords/ords-latest.zip
+   
     podman exec $orclRunning /usr/bin/wget -O /home/oracle/ords.zip https://download.oracle.com/otn_software/java/ords/ords-latest.zip
     podman exec $orclRunning /usr/bin/unzip /home/oracle/ords.zip -d /home/oracle/ords/
     
@@ -282,15 +280,26 @@ function startOracle() # start or restart the container named Oracle_DB_Containe
         countDown
         serveORDS
     else
-        echo "No Oracle podman image found, provisioning..."
-        # podman run -d --network="podmannet" -p 1521:1521 -it --name Oracle_DB_Container container-registry.oracle.com/database/free:23.4.0.0
+        echo "Please choose the Oracle Database container version:"
+        echo "1. Lite Version (Good for general database development)"
+        echo "2. Full Version (Required for the MongoDB API)"
+        read -p "Enter your choice (1 for Lite, 2 for Full): " choice
 
-        # x86_64 attempt
-        # podman run -d --network="podmannet" --platform linux/amd64 -p 1521:1521 -p 5902:5902 -p 5500:5500 -p 8080:8080 -p 8443:8443 -p 27017:27017 -it --name Oracle_DB_Container container-registry.oracle.com/database/free:latest
+        case $choice in
+            1)
+                image="container-registry.oracle.com/database/free:23.5.0.0-lite"
+                ;;
+            2)
+                image="container-registry.oracle.com/database/free:latest"
+                ;;
+            *)
+                echo "Invalid choice. Defaulting to Full version."
+                image="container-registry.oracle.com/database/free:latest"
+                ;;
+        esac
 
-        podman run -d --network="podmannet" -p 1521:1521 -p 5902:5902 -p 5500:5500 -p 8080:8080 -p 8443:8443 -p 27017:27017 -it --name Oracle_DB_Container container-registry.oracle.com/database/free:latest
-
-        # podman run --platform linux/amd64 quay.io/podman/hello
+        echo "Provisioning new Oracle container with image: $image"
+        podman run -d --network="podmannet" -p 1521:1521 -p 5902:5902 -p 5500:5500 -p 8080:8080 -p 8443:8443 -p 27017:27017 -it --name Oracle_DB_Container $image
 
         export runningOrcl=$(podman ps --no-trunc --format '{"name":"{{.Names}}"}'    | cut -d : -f 2 | sed 's/"//g' | sed 's/}//g')
         echo "Oracle is running as: "$runningOrcl
