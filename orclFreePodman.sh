@@ -106,9 +106,22 @@ function countDown()
 
 function badChoice()
 {
+    # Increment the invalid choice counter
+    ((INVALID_COUNT++))
+    # Set maximum allowed invalid attempts
+    MAX_INVALID=3
+
     echo "Invalid choice, please try again..."
-    sleep 5
-    startUp
+    echo "Attempt $INVALID_COUNT of $MAX_INVALID."
+
+    # Check if invalid attempts exceed the max allowed
+    if [ "$INVALID_COUNT" -ge "$MAX_INVALID" ]
+    then
+        echo "Too many invalid attempts. Exiting the script..."
+        exit 1  # Exit the script
+    fi
+
+    sleep 2
 }
 
 # see if podman is installed and if not, install homebrew and podman with requirements
@@ -459,9 +472,11 @@ function setupORDS()
 
     # set mongoapi configs
     podman exec -it $orclImage /home/oracle/ords/bin/ords --config /home/oracle/ords_config config set mongo.enabled true
+    podman exec -it $orclImage /home/oracle/ords/bin/ords --config /home/oracle/ords_config config set mongo.tls false
     podman exec -it $orclImage /home/oracle/ords/bin/ords --config /home/oracle/ords_config config set mongo.port 27017
     podman exec -it $orclImage /home/oracle/ords/bin/ords --config /home/oracle/ords_config config info mongo.enabled
     podman exec -it $orclImage /home/oracle/ords/bin/ords --config /home/oracle/ords_config config info mongo.port
+    podman exec -it $orclImage /home/oracle/ords/bin/ords --config /home/oracle/ords_config config info mongo.tls
 
     serveORDS
 
@@ -574,6 +589,10 @@ esac
 
 
 # Let's go to work
+# Initialize the invalid attempt counter to escape the while loop
+INVALID_COUNT=0  
+
+while true; do
 startUp
 case $menuChoice in
     1) 
@@ -628,4 +647,4 @@ case $menuChoice in
         badChoice
         ;;
     esac
-
+done
