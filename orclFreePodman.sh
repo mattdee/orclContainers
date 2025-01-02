@@ -472,7 +472,7 @@ function setupORDS()
 
     # set mongoapi configs
     podman exec -it $orclImage /home/oracle/ords/bin/ords --config /home/oracle/ords_config config set mongo.enabled true
-    podman exec -it $orclImage /home/oracle/ords/bin/ords --config /home/oracle/ords_config config set mongo.tls false
+    # podman exec -it $orclImage /home/oracle/ords/bin/ords --config /home/oracle/ords_config config set mongo.tls false
     podman exec -it $orclImage /home/oracle/ords/bin/ords --config /home/oracle/ords_config config set mongo.port 27017
     podman exec -it $orclImage /home/oracle/ords/bin/ords --config /home/oracle/ords_config config info mongo.enabled
     podman exec -it $orclImage /home/oracle/ords/bin/ords --config /home/oracle/ords_config config info mongo.port
