@@ -111,7 +111,7 @@ Both scripts support direct commands for common operations:
 ## Oracle Database Container Details
 
 - **Image**: Oracle Database Free
-- **Version**: Latest (23c AI)
+- **Version**: Latest (23ai)
 - **Default Credentials**:
   - SYS/SYSTEM password: `Oradoc_db1`
   - Created user: `matt` with password `matt`
@@ -127,7 +127,7 @@ Both scripts support direct commands for common operations:
 The scripts support automatic setup and serving of ORDS, allowing RESTful web services access to the Oracle database.
 
 ### MongoDB API Compatibility
-Oracle Database 23c includes MongoDB API compatibility. These scripts support configuration and testing of this feature.
+Oracle Database 23ai includes MongoDB API compatibility. These scripts support configuration and testing of this feature.
 
 ### Container Management
 - Start/stop/restart containers
