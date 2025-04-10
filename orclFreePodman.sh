@@ -206,7 +206,7 @@ startOracle() {
     elif [ "$orclPresent" == "$ORACLE_CONTAINER" ]; then
         logInfo "Oracle podman container found, restarting..."
         podman restart $orclPresent
-        countDown "Waiting for Oracle to start" 10
+        countDown "Waiting for Oracle to start" 5
         serveORDS
     else
         echo "Please choose the Oracle Database container version:"
