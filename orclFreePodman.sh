@@ -12,7 +12,6 @@
    # REQUIREMENTS: Podman, internet connection
    #       AUTHOR: Matt D
    #      CREATED: 12.17.2024
-   #      UPDATED: 04.10.2024 - changed menu, added logging, and now in Technicolor 🤷
    #      VERSION: 1.1
    #
    #===================================================================================
