@@ -30,7 +30,7 @@ INVALID_COUNT=0
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
+CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 #===========================
@@ -56,9 +56,9 @@ logSuccess() {
 # Display formatted menu
 displayMenu() {
     clear
-    echo -e "${BLUE}===========================================================================${NC}"
-    echo -e "${BLUE}          Oracle Database Free Edition Management Script                   ${NC}"
-    echo -e "${BLUE}===========================================================================${NC}"
+    echo -e "${CYAN}===========================================================================${NC}"
+    echo -e "${CYAN}          Oracle Database Free Edition Management Script                   ${NC}"
+    echo -e "${CYAN}===========================================================================${NC}"
     
     echo -e "\n${GREEN}Container Management:${NC}"
     echo "  1) Start Oracle container          6) Install utilities"
@@ -72,7 +72,7 @@ displayMenu() {
     echo "  12) SQL*Plus user connection       15) Start ORDS service"
     echo "  13) SQL*Plus SYSDBA connection     16) Check MongoDB API connection"
 
-    echo -e "\n${BLUE}===========================================================================${NC}"
+    echo -e "\n${CYAN}===========================================================================${NC}"
     read -p "Please enter your choice [1-16]: " menuChoice
     export menuChoice=$menuChoice
 }
