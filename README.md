@@ -8,7 +8,7 @@ A collection of bash scripts to easily manage Oracle Database containers in eith
 
 These scripts provide a convenient way to manage Oracle Database containers, allowing you to:
 - Start/stop containers
-- Access the container shell (bash)
+- Access the container shell (bash or root)
 - Connect to the database via SQLPlus
 - Set up and serve ORDS (Oracle REST Data Services)
 - Configure and test MongoDB API compatibility
@@ -63,40 +63,81 @@ Both scripts provide an interactive menu when run without arguments:
 
 ### Command Line Arguments
 
-Both scripts support direct commands for common operations:
+Both scripts support direct commands for various operations:
 
 ```bash
-# Recommended: Using Podman
-./orclFreePodman.sh start    # Start the Oracle container
-./orclFreePodman.sh stop     # Stop the Oracle container
-./orclFreePodman.sh bash     # Access bash shell in the container
-./orclFreePodman.sh sql      # Access SQLPlus as a user
-./orclFreePodman.sh ords     # Start ORDS server
+# Get help with available commands
+./orclFreePodman.sh help
+```
 
-# Legacy: Using Docker
-./orclDocker.sh [command]    # Same commands as above
+#### Command Examples for orclFreePodman.sh:
+
+```bash
+# Start the Oracle container
+./orclFreePodman.sh start
+
+# Stop the Oracle container
+./orclFreePodman.sh stop
+
+# Access bash shell in the container
+./orclFreePodman.sh bash
+
+# Access root shell in the container
+./orclFreePodman.sh root
+
+# Access SQLPlus as a user
+./orclFreePodman.sh sqluser
+
+# Access SQLPlus as SYSDBA
+./orclFreePodman.sh sqlsys
+
+# Start ORDS server
+./orclFreePodman.sh ords
+
+# Setup ORDS
+./orclFreePodman.sh setupords
+
+# Install utilities in the container
+./orclFreePodman.sh utils
+
+# Copy a file into the container
+./orclFreePodman.sh copyin
+
+# Copy a file out of the container
+./orclFreePodman.sh copyout
+
+# Clean unused volumes
+./orclFreePodman.sh clean
+
+# Check MongoDB API connection
+./orclFreePodman.sh mongoapi
 ```
 
 ## Menu Options
 
-### orclFreePodman.sh Options (Recommended)
+### orclFreePodman.sh Menu
 
-1. Start Oracle container
-2. Stop Oracle container
-3. Bash access
-4. SQLPlus nolog connect
-5. SQLPlus SYSDBA
-6. SQLPlus user
-7. Do nothing (exit)
-8. Clean unused volumes
-9. Root access
-10. Install utilities
-11. Copy file into container
-12. Copy file out of container
-13. Remove Oracle container
-14. Setup ORDS
-15. Serve ORDS
-16. Check MongoDB API connection
+The menu is organized into logical sections:
+
+**Container Management:**
+- Start Oracle container
+- Stop Oracle container
+- Bash access
+- Root access
+- Remove Oracle container
+- Install utilities
+- Copy file into container
+- Copy file out of container
+- Clean unused volumes
+- Exit script
+
+**Database Access & Utilities:**
+- SQL*Plus nolog connection
+- SQL*Plus user connection
+- SQL*Plus SYSDBA connection
+- Setup ORDS
+- Start ORDS service
+- Check MongoDB API connection
 
 ### orclDocker.sh Options (Legacy)
 
@@ -123,20 +164,28 @@ Both scripts support direct commands for common operations:
 
 ## Features
 
+### Color-Coded Output and Improved Error Handling
+The improved Podman script now features:
+- Color-coded output for better readability
+- Comprehensive error handling and status messages
+- Clear success and failure notifications
+- Improved user feedback during operations
+
 ### ORDS (Oracle REST Data Services)
 The scripts support automatic setup and serving of ORDS, allowing RESTful web services access to the Oracle database.
 
 ### MongoDB API Compatibility
-Oracle Database 23ai includes MongoDB API compatibility. These scripts support configuration and testing of this feature.
+Oracle Database 23ai includes MongoDB API compatibility. The script supports configuration and testing of this feature.
 
 ### Container Management
 - Start/stop/restart containers
 - Clean unused volumes
 - Install additional utilities (sudo, wget, htop, etc.)
 - File transfer between host and container
+- Root access for advanced operations
 
 ### Database Access
-- SQLPlus with various connection methods
+- SQLPlus with various connection methods (nolog, user, SYSDBA)
 - Automatic user creation with DBA privileges
 
 ## Why Podman?
@@ -165,24 +214,24 @@ Podman offers several advantages over Docker:
 ### Setting Up ORDS and MongoDB API
 
 ```bash
-# Using menu options:
-./orclFreePodman.sh
-# Select 14 to set up ORDS
-# Select 15 to serve ORDS
-# Select 16 to check MongoDB API connection
+# Using command line arguments:
+./orclFreePodman.sh setupords
+./orclFreePodman.sh ords
+./orclFreePodman.sh mongoapi
 ```
 
 ## Troubleshooting
 
 ### Container Not Starting
-- Ensure Docker/Podman is installed and running
-- Check for sufficient memory and disk space
-- Use option 8 in Podman script to clean unused volumes
+- Ensure Podman is installed and running
+- Check for sufficient memory and disk space (container requires at least 8GB of RAM)
+- Use the clean command to remove unused volumes: `./orclFreePodman.sh clean`
 
 ### Database Connection Issues
 - Wait for the container to fully initialize (can take several minutes)
-- Verify the container is running with `docker ps` or `podman ps`
+- Verify the container is running with `podman ps`
 - Check for port conflicts with other services
+- Review error messages with the improved color-coded output
 
 ## License
 
@@ -190,7 +239,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Acknowledgments
 
-- Created by Matt D
+- Created by me, Matt D 🦄
 - Oracle Database Free images provided by Oracle
 
 ## Contributing
