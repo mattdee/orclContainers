@@ -166,7 +166,7 @@ The menu is organized into logical sections:
 
 ### Color-Coded Output and Improved Error Handling
 The improved Podman script now features:
-- Color-coded output for better readability
+- Color-coded output for better readability (cyan, green, yellow, and red for different message types)
 - Comprehensive error handling and status messages
 - Clear success and failure notifications
 - Improved user feedback during operations
@@ -239,7 +239,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Acknowledgments
 
-- Created by me, Matt D 🦄
+- Created by Matt D
 - Oracle Database Free images provided by Oracle
 
 ## Contributing
