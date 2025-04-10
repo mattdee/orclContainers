@@ -1,4 +1,3 @@
-
 #!/bin/bash
 #
 #
@@ -6,297 +5,215 @@
    #
    #         FILE: orclFreePodman.sh
    #
-   #        USAGE: run it
+   #        USAGE: ./orclFreePodman.sh [start|stop|restart|bash|root|sql|ords|mongoapi|help]
    #
-   #  DESCRIPTION:
-   #      OPTIONS:  
-   # REQUIREMENTS: 
+   #  DESCRIPTION: Oracle Database Free podman container management script
+   #      OPTIONS: See menu or command line arguments
+   # REQUIREMENTS: Podman, internet connection
    #       AUTHOR: Matt D
    #      CREATED: 12.17.2024
-   #      VERSION: 1.0
-   #
-   #
-   #
-   #
-   #
+   #      UPDATED: 04.10.2024 - changed menu, added logging, and now in Technicolor 🤷
+   #      VERSION: 1.1
    #
    #===================================================================================
 
-function startUp()
-{
-    clear
-    echo "##########################################################"
-    echo "# This will manage your Oracle Database Podman container #"
-    echo "##########################################################"
+# Global variables
+ORACLE_USER="matt"
+ORACLE_PASS="matt"
+ORACLE_SYS_PASS="Oradoc_db1"
+ORACLE_CONTAINER="Oracle_DB_Container"
+ORACLE_PDB="FREEPDB1"
+CONTAINER_PORT_MAP="-p 1521:1521 -p 5902:5902 -p 5500:5500 -p 8080:8080 -p 8443:8443 -p 27017:27017"
+MAX_INVALID=3
+INVALID_COUNT=0
 
-    echo
-    echo "################################################"
-    echo "#                                              #"
-    echo "#    What would you like to do ?               #"
-    echo "#                                              #"
-    echo "#          1  == Start Oracle container        #"
-    echo "#          2  == Stop Oracle container         #"
-    echo "#          3  == Bash access                   #"
-    echo "#          4  == SQLPlus nolog connect         #"
-    echo "#          5  == SQLPlus SYSDBA                #"
-    echo "#          6  == SQLPlus user                  #"
-    echo "#          7  == Do nothing (exit)             #"
-    echo "#          8  == Clean unused volumes          #"
-    echo "#          9  == Root access                   #"
-    echo "#         10  == Install utilities             #"
-    echo "#         11  == Copy file into container      #"
-    echo "#         12  == Copy file out of container    #"
-    echo "#         13  == Remove Oracle container       #"
-    echo "#         14  == Setup ORDS                    #"
-    echo "#         15  == Serve ORDS                    #"
-    echo "#         16  == Check MongoDB API connection  #"
-    echo "#                                              #"
-    echo "################################################"
-    echo 
-    read -p "Please enter your choice: " menuChoice
+# Colors for better readability
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+#===========================
+# Helper Functions
+#===========================
+
+logInfo() {
+    echo -e "${GREEN}[INFO]${NC} $1"
+}
+
+logWarning() {
+    echo -e "${YELLOW}[WARNING]${NC} $1"
+}
+
+logError() {
+    echo -e "${RED}[ERROR]${NC} $1"
+}
+
+logSuccess() {
+    echo -e "${GREEN}[SUCCESS]${NC} $1"
+}
+
+# Display formatted menu
+displayMenu() {
+    clear
+    echo -e "${BLUE}===========================================================================${NC}"
+    echo -e "${BLUE}          Oracle Database Free Edition Management Script                   ${NC}"
+    echo -e "${BLUE}===========================================================================${NC}"
+    
+    echo -e "\n${GREEN}Container Management:${NC}"
+    echo "  1) Start Oracle container          6) Install utilities"
+    echo "  2) Stop Oracle container           7) Copy file into container"
+    echo "  3) Bash access                     8) Copy file out of container"
+    echo "  4) Root access                     9) Clean unused volumes"
+    echo "  5) Remove Oracle container         10) Exit script"
+    
+    echo -e "\n${GREEN}Database Access & Utilities:${NC}"
+    echo "  11) SQL*Plus nolog connection      14) Setup ORDS"
+    echo "  12) SQL*Plus user connection       15) Start ORDS service"
+    echo "  13) SQL*Plus SYSDBA connection     16) Check MongoDB API connection"
+
+    echo -e "\n${BLUE}===========================================================================${NC}"
+    read -p "Please enter your choice [1-16]: " menuChoice
     export menuChoice=$menuChoice
 }
 
-# Menu item
-function helpMe()
-{
-    echo "Help wanted..."
-    sleep 5
-    startUp
-}
-
-function doNothing()
-{
-    echo "################################################"
-    echo "You don't want to do nothing...lazy..."
-    echo "So...you want to quit...yes? "
-    echo "Enter yes or no"
-    echo "################################################"
-    read doWhat
-    if [[ $doWhat = yes ]]; then
-        echo "Yes"
-        echo "Bye! ¯\_(ツ)_/¯ " 
-        exit 1
-    else
-        echo "No"
-        startUp
-    fi
-    
-}
-
-function countDown()
-{
-    row=2
-    col=2
-    
-    clear 
-    msg="Please wait for Oracle to start ...${1}..."
-    tput cup $row $col
-    echo -n "$msg"
-    l=${#msg}
-    l=$(( l+$col ))
-    for i in {10..1}
-        do
-            tput cup $row $l
-            echo -n "$i"
-            sleep 1
-         done
-    #startUp
-}
-
-function badChoice()
-{
-    # Increment the invalid choice counter
-    ((INVALID_COUNT++))
-    # Set maximum allowed invalid attempts
-    MAX_INVALID=3
-
-    echo "Invalid choice, please try again..."
-    echo "Attempt $INVALID_COUNT of $MAX_INVALID."
-
-    # Check if invalid attempts exceed the max allowed
-    if [ "$INVALID_COUNT" -ge "$MAX_INVALID" ]
-    then
-        echo "Too many invalid attempts. Exiting the script..."
-        exit 1  # Exit the script
-    fi
-
-    sleep 2
-}
-
-# see if podman is installed and if not, install homebrew and podman with requirements
-function checkPodman()
-{
+# Check if podman is installed and running
+checkPodman() {
     if ! command -v podman > /dev/null 2>&1; then
-        echo "Podman is not installed on your system."
+        logError "Podman is not installed on your system."
 
-        # Prompt the user for installation
         read -p "Would you like to install Podman and its dependencies? (y/n): " choice
         if [[ "$choice" =~ ^[Yy]$ ]]; then
-            echo "Installing Podman and dependencies..."
+            logInfo "Installing Podman and dependencies..."
 
             # Install Homebrew if it's not installed
             if ! command -v brew > /dev/null 2>&1; then
-                echo "Homebrew is not installed. Installing Homebrew first..."
+                logInfo "Homebrew is not installed. Installing Homebrew first..."
                 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
                 export PATH="/usr/local/bin:$PATH"  # For Intel Macs
                 export PATH="/opt/homebrew/bin:$PATH"  # For Apple Silicon
             fi
 
             # Install Podman, QEMU, and vfkit
-            brew tap cfergeau/crc;brew install vfkit;brew install qemu;brew install podman;brew install podman-desktop
+            brew tap cfergeau/crc
+            brew install vfkit qemu podman podman-desktop
 
             # Initialize Podman machine
-            echo "Initializing Podman machine..."
+            logInfo "Initializing Podman machine..."
             podman machine init --cpus 8 --memory 16384 --disk-size 550
 
-            echo "Starting Podman machine..."
+            logInfo "Starting Podman machine..."
             podman machine start
 
-            echo "Podman installation complete!"
+            logSuccess "Podman installation complete!"
         else
-            echo "Podman is required to run this script. Exiting..."
+            logError "Podman is required to run this script. Exiting..."
             exit 1
         fi
     fi
 
     # Verify Podman is running
     if ! podman ps > /dev/null 2>&1; then
-        echo "Podman is installed but not running. Starting Podman machine..."
+        logInfo "Podman is installed but not running. Starting Podman machine..."
         podman machine start
     fi
 }
 
-# Menu item
-function copyIn()
-{
-    checkPodman
-    export orclRunning=$(podman ps --no-trunc --format "table {{.ID}}\t {{.Names}}\t" | grep -i Oracle_DB_Container  | awk '{print $2}' )
-    echo "Please enter the ABSOLUTE PATH to the file you want copied: "
-    read thePath
-    echo "Please enter the FILE NAME you want copied: "
-    read theFile
-    echo "Copying info: " $thePath/$theFile
-    podman cp $thePath/$theFile $orclRunning:/tmp
-
+# Create podman network if it doesn't exist
+createPodnet() {
+    if ! podman network inspect podmannet &>/dev/null; then
+        logInfo "Creating podman network 'podmannet'..."
+        podman network create -d bridge podmannet
+    fi
 }
 
-# Menu item
-function copyOut()
-{
-    checkPodman
-    export orclRunning=$(podman ps --no-trunc --format "table {{.ID}}\t {{.Names}}\t" | grep -i Oracle_DB_Container  | awk '{print $2}' )
-    echo "Please enter the ABSOLUTE PATH in the CONTAINER to the file you want copied to host: "
-    read thePath
-    echo "Please enter the FILE NAME in the CONTAINER you want copied: "
-    read theFile
-    echo "Copy info: " $orclRunning":" $thePath/$theFile
-    podman cp $orclRunning:$thePath/$theFile /tmp/
-
+# Get running container ID/name
+getContainerId() {
+    export orclRunning=$(podman ps --no-trunc --format "table {{.ID}}\t {{.Names}}\t" | grep -i $ORACLE_CONTAINER | awk '{print $2}')
+    echo $orclRunning
 }
 
-function setorclPwd()
-{
-    checkPodman
-    export orclRunning=$(podman ps --no-trunc --format "table {{.ID}}\t {{.Names}}\t" | grep -i Oracle_DB_Container  | awk '{print $2}' )
-    podman exec $orclRunning /home/oracle/setPassword.sh Oradoc_db1
-}
-
-# Menu item
-function installMongoTools()
-{
-    export orclImage=$(podman ps --no-trunc --format "table {{.ID}}\t {{.Names}}\t" | grep -i Oracle_DB_Container  | awk '{print $2}' )
-    podman exec -i -u 0 $orclImage /usr/bin/bash -c "echo '[mongodb-org-7.0]
-name=MongoDB Repository
-baseurl=https://repo.mongodb.org/yum/redhat/8/mongodb-org/7.0/aarch64/
-gpgcheck=1
-enabled=1
-gpgkey=https://pgp.mongodb.com/server-7.0.asc' >>/etc/yum.repos.d/mongodb-org-7.0.repo"
-
-    podman exec -i -u 0 $orclImage /usr/bin/yum install -y mongodb-mongosh
-   
-}
-
-# Menu item
-function installUtils()
-{
-    clear screen
-    echo "Installing useful tools after provisioning container..."
-    echo "Please be patient as this can take time given network latency."
-
-    checkPodman
-    export orclRunning=$(podman ps --no-trunc --format "table {{.ID}}\t {{.Names}}\t" | grep -i Oracle_DB_Container  | awk '{print $2}' )
-    # workaround for ol repo issues, need to zero file
-    podman exec -it -u 0 $orclRunning /bin/bash -c "/usr/bin/touch /etc/yum/vars/ociregion"
-    podman exec -it -u 0 $orclRunning /bin/bash -c "/usr/bin/echo > /etc/yum/vars/ociregion"
-
-
-    podman exec -it -u 0 $orclRunning /bin/bash -c "/usr/bin/echo 'oracle ALL=(ALL) NOPASSWD: ALL' >>/etc/sudoers"
-
-
-    podman exec -it -u 0 $orclRunning /usr/bin/rpm -ivh https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm
-    podman exec -it -u 0 $orclRunning /usr/bin/yum update -y
-
-    podman exec -it -u 0 $orclRunning /usr/bin/yum install -y sudo which java-17-openjdk wget htop lsof zip unzip rlwrap git
-   
-    podman exec $orclRunning /usr/bin/wget -O /home/oracle/ords.zip https://download.oracle.com/otn_software/java/ords/ords-latest.zip
-    podman exec $orclRunning /usr/bin/unzip /home/oracle/ords.zip -d /home/oracle/ords/
+# Countdown timer
+countDown() {
+    message=${1:-"Please wait..."}
+    seconds=${2:-5}
     
-
-    # install mongo tools
-    installMongoTools
-
-    # get my personal tools
-    podman exec $orclRunning /usr/bin/wget -O /tmp/PS1.sh https://raw.githubusercontent.com/mattdee/orclDocker/main/PS1.sh
-    podman exec $orclRunning /bin/bash /tmp/PS1.sh
-    podman exec $orclRunning /usr/bin/wget -O /opt/oracle/product/23ai/dbhomeFree/sqlplus/admin/glogin.sql https://raw.githubusercontent.com/mattdee/orclDocker/main/glogin.sql
-    setorclPwd
-    startUp
+    logInfo "$message"
+    for (( i=$seconds; i>=1; i-- )); do
+        echo -ne "\rStarting in $i seconds..."
+        sleep 1
+    done
+    echo -e "\rStarting now!                  "
 }
 
+# Handle invalid menu choice
+badChoice() {
+    # Increment the invalid choice counter
+    ((INVALID_COUNT++))
 
-function setorclPwd()
-{
-    checkPodman
-    export orclRunning=$(podman ps --no-trunc --format "table {{.ID}}\t {{.Names}}\t" | grep -i Oracle_DB_Container  | awk '{print $2}' )
-    podman exec $orclRunning /home/oracle/setPassword.sh Oradoc_db1
+    logWarning "Invalid choice, please try again..."
+    logWarning "Attempt $INVALID_COUNT of $MAX_INVALID."
+
+    # Check if invalid attempts exceed the max allowed
+    if [ "$INVALID_COUNT" -ge "$MAX_INVALID" ]; then
+        logError "Too many invalid attempts. Exiting the script..."
+        exit 1
+    fi
+
+    sleep 2
 }
 
-function createPodnet()
-{
-    podman network create -d bridge podmannet
+#===========================
+# Core Functions
+#===========================
+
+# Exit function
+doNothing() {
+    logWarning "You want to quit...yes?"
+    read -p "Enter yes or no: " doWhat
+    if [[ $doWhat = yes ]]; then
+        logInfo "Bye! ¯\\_(ツ)_/¯"
+        exit 0
+    else
+        return
+    fi
 }
 
-# Menu item
-function listPorts()
-{
-    export orclRunning=$(podman ps --no-trunc --format "table {{.ID}}\t {{.Names}}\t" | grep -i Oracle_DB_Container  | awk '{print $2}' )
-    podman port $orclRunning
+# List container ports
+listPorts() {
+    container_id=$(getContainerId)
+    if [ -n "$container_id" ]; then
+        logInfo "Container ports:"
+        podman port $container_id
+    else
+        logError "No running container found."
+    fi
 }
 
-# Menu item
-function startOracle() # start or restart the container named Oracle_DB_Container
-{   
+# Start Oracle container
+startOracle() {
     checkPodman
     createPodnet
-    # check to see if Oracle_DB_Container is running and if running exit
-    export orclRunning=$(podman ps --no-trunc --format "table {{.ID}}\t {{.Names}}\t" | grep -i Oracle_DB_Container  | awk '{print $2}' )
-    export orclPresent=$(podman container ls -a --no-trunc --format "table {{.ID}}\t {{.Names}}\t" | grep -i Oracle_DB_Container  | awk '{print $2}')
+    
+    # Check if container is already running
+    export orclRunning=$(getContainerId)
+    export orclPresent=$(podman container ls -a --no-trunc --format "table {{.ID}}\t {{.Names}}\t" | grep -i $ORACLE_CONTAINER | awk '{print $2}')
 
-    if [ "$orclRunning" == "Oracle_DB_Container" ]; then
-        echo "Oracle podman container is running, please select other option."
-        sleep 5
-        startUp
-    elif [ "$orclPresent" == "Oracle_DB_Container" ]; then
-        echo "Oracle podman container found, restarting..."
+    if [ "$orclRunning" == "$ORACLE_CONTAINER" ]; then
+        logWarning "Oracle podman container is already running."
+        listPorts
+        return
+    elif [ "$orclPresent" == "$ORACLE_CONTAINER" ]; then
+        logInfo "Oracle podman container found, restarting..."
         podman restart $orclPresent
-        countDown
+        countDown "Waiting for Oracle to start" 10
         serveORDS
     else
         echo "Please choose the Oracle Database container version:"
         echo "1. Lite Version (Good for general database development)"
         echo "2. Full Version (Required for the MongoDB API)"
-        read -p "Enter your choice (1 for Lite, 2 for Full): " choice
+        read -p "Enter your choice [1/2]: " choice
 
         case $choice in
             1)
@@ -306,345 +223,592 @@ function startOracle() # start or restart the container named Oracle_DB_Containe
                 image="container-registry.oracle.com/database/free:latest"
                 ;;
             *)
-                echo "Invalid choice. Defaulting to Full version."
+                logWarning "Invalid choice. Defaulting to Full version."
                 image="container-registry.oracle.com/database/free:latest"
                 ;;
         esac
 
-        echo "Provisioning new Oracle container with image: $image"
-        podman run -d --network="podmannet" -p 1521:1521 -p 5902:5902 -p 5500:5500 -p 8080:8080 -p 8443:8443 -p 27017:27017 -it --name Oracle_DB_Container $image
+        logInfo "Provisioning new Oracle container with image: $image"
+        podman run -d --network="podmannet" $CONTAINER_PORT_MAP -it --name $ORACLE_CONTAINER $image
 
-        export runningOrcl=$(podman ps --no-trunc --format '{"name":"{{.Names}}"}'    | cut -d : -f 2 | sed 's/"//g' | sed 's/}//g')
-        echo "Oracle is running as: "$runningOrcl
-        echo "Please be patient as it takes time for the container to start..."
-        countDown
+        if [ $? -ne 0 ]; then
+            logError "Failed to start Oracle container."
+            return 1
+        fi
+
+        logSuccess "Oracle container started successfully."
+        countDown "Waiting for Oracle to initialize" 15
         installUtils
     fi
     listPorts
-
 }
 
-
-# Menu item
-function stopOracle()
-{
+# Stop Oracle container
+stopOracle() {
     checkPodman
     export stopOrcl=$(podman ps --no-trunc | grep -i oracle | awk '{print $1}')
-    echo $stopOrcl
+    
+    if [ -z "$stopOrcl" ]; then
+        logWarning "No Oracle containers are running."
+        return
+    fi
 
-    for i in $stopOrcl
-    do
-        echo $i
-        echo "Stopping container: " $i
+    for i in $stopOrcl; do
+        logInfo "Stopping container: $i"
         podman stop $i
+        if [ $? -eq 0 ]; then
+            logSuccess "Container stopped successfully."
+        else
+            logError "Failed to stop container."
+        fi
     done
 
     cleanVolumes
-
 }
 
-# Menu item
-function cleanVolumes()
-{
-    podman volume prune -f 
+# Clean unused volumes
+cleanVolumes() {
+    logInfo "Cleaning unused volumes..."
+    podman volume prune -f
+    logSuccess "Volumes cleaned."
 }
 
-# Menu item
-function removeContainer()
-{
+# Remove container
+removeContainer() {
     stopOracle
-    podman rm $(podman ps -a | grep Oracle_DB_Container | awk '{print $1}')
+    logInfo "Removing Oracle container..."
+    podman rm $(podman ps -a | grep $ORACLE_CONTAINER | awk '{print $1}')
+    if [ $? -eq 0 ]; then
+        logSuccess "Container removed successfully."
+    else
+        logError "Failed to remove container."
+    fi
 }
 
-# Menu item
-function bashAccess()
-{
+# Get bash access to container
+bashAccess() {
     checkPodman
-    export orclImage=$(podman ps --no-trunc --format "table {{.ID}}\t {{.Names}}\t" | grep -i Oracle_DB_Container  | awk '{print $2}' )
+    export orclImage=$(getContainerId)
+    
+    if [ -z "$orclImage" ]; then
+        logError "Oracle container is not running."
+        return 1
+    fi
+    
+    logInfo "Opening bash shell in container..."
     podman exec -it $orclImage /bin/bash
 }
 
-# Menu item
-function rootAccess()
-{
+# Get root access to container
+rootAccess() {
     checkPodman
-    export orclImage=$(podman ps --no-trunc --format "table {{.ID}}\t {{.Names}}\t" | grep -i Oracle_DB_Container  | awk '{print $2}' )
+    export orclImage=$(getContainerId)
+    
+    if [ -z "$orclImage" ]; then
+        logError "Oracle container is not running."
+        return 1
+    fi
+    
+    logInfo "Opening root shell in container..."
     podman exec -it -u 0 $orclImage /bin/bash
 }
 
-
-# Menu item
-function sqlPlusnolog()
-{
+# Get SQLPlus nolog access
+sqlPlusNolog() {
     checkPodman
-    export orclImage=$(podman ps --no-trunc --format "table {{.ID}}\t {{.Names}}\t" | grep -i Oracle_DB_Container  | awk '{print $2}' )
+    export orclImage=$(getContainerId)
+    
+    if [ -z "$orclImage" ]; then
+        logError "Oracle container is not running."
+        return 1
+    fi
+    
+    logInfo "Opening SQLPlus session (no login)..."
     podman exec -it $orclImage bash -c "source /home/oracle/.bashrc; sqlplus /nolog"
 }
 
-# Menu item
-function sysDba()
-{
+# Get SYSDBA access
+sysDba() {
     checkPodman
-    export orclImage=$(podman ps --no-trunc --format "table {{.ID}}\t {{.Names}}\t" | grep -i Oracle_DB_Container  | awk '{print $2}' )
-    podman exec -it $orclImage bash -c "source /home/oracle/.bashrc; sqlplus sys/Oradoc_db1@'(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=127.0.0.1)(PORT=1521))
-    (CONNECT_DATA=(SERVER=DEDICATED)(SERVICE_NAME=FREEPDB1)))' as sysdba"
+    export orclImage=$(getContainerId)
+    
+    if [ -z "$orclImage" ]; then
+        logError "Oracle container is not running."
+        return 1
+    fi
+    
+    logInfo "Opening SQLPlus session as SYSDBA..."
+    podman exec -it $orclImage bash -c "source /home/oracle/.bashrc; sqlplus sys/$ORACLE_SYS_PASS@'(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=127.0.0.1)(PORT=1521))(CONNECT_DATA=(SERVER=DEDICATED)(SERVICE_NAME=$ORACLE_PDB)))' as sysdba"
 }
 
-
-function createMatt()
-{
+# Create user account
+createUser() {
     checkPodman
-    export orclImage=$(podman ps --no-trunc --format "table {{.ID}}\t {{.Names}}\t" | grep -i Oracle_DB_Container  | awk '{print $2}' )
-    podman exec -it $orclImage bash -c "source /home/oracle/.bashrc; sqlplus sys/Oradoc_db1@'(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=127.0.0.1)(PORT=1521))
-    (CONNECT_DATA=(SERVER=DEDICATED)(SERVICE_NAME=FREEPDB1)))' as sysdba <<EOF
-    grant sysdba,dba to matt identified by matt;
+    export orclImage=$(getContainerId)
+    
+    if [ -z "$orclImage" ]; then
+        logError "Oracle container is not running."
+        return 1
+    fi
+    
+    logInfo "Creating user account..."
+    podman exec -it $orclImage bash -c "source /home/oracle/.bashrc; sqlplus sys/$ORACLE_SYS_PASS@'(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=127.0.0.1)(PORT=1521))(CONNECT_DATA=(SERVER=DEDICATED)(SERVICE_NAME=$ORACLE_PDB)))' as sysdba <<EOF
+    grant sysdba,dba to $ORACLE_USER identified by $ORACLE_PASS;
     exit;
 EOF"
 }
 
-# Menu item
-function sqlPlususer()
-{
+# Get SQLPlus user access
+sqlPlusUser() {
     checkPodman
-    export orclImage=$(podman ps --no-trunc --format "table {{.ID}}\t {{.Names}}\t" | grep -i Oracle_DB_Container  | awk '{print $2}' )
-    createMatt
-    podman exec -it $orclImage bash -c "source /home/oracle/.bashrc; sqlplus matt/matt@'(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=127.0.0.1)(PORT=1521))
-    (CONNECT_DATA=(SERVER=DEDICATED)(SERVICE_NAME=FREEPDB1)))'"
-}
-
-# Menu item
-function serveORDS()
-{
-    echo "Attempting to start ORDS in container..."
-    export orclImage=$(podman ps --no-trunc --format "table {{.ID}}\t {{.Names}}\t" | grep -i Oracle_DB_Container  | awk '{print $2}' )
+    export orclImage=$(getContainerId)
     
-    podman exec -it $orclImage bash -c "source /home/oracle/.bashrc; sqlplus sys/Oradoc_db1@'(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=127.0.0.1)(PORT=1521))
-    (CONNECT_DATA=(SERVER=DEDICATED)(SERVICE_NAME=FREEPDB1)))' as sysdba <<EOF
-    grant soda_app, create session, create table, create view, create sequence, create procedure, create job, unlimited tablespace to matt;
-    exit;
-EOF"
+    if [ -z "$orclImage" ]; then
+        logError "Oracle container is not running."
+        return 1
+    fi
     
-    # ords enable the matt schema
-    podman exec -it $orclImage bash -c "source /home/oracle/.bashrc; sqlplus matt/matt@'(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=127.0.0.1)(PORT=1521))
-    (CONNECT_DATA=(SERVER=DEDICATED)(SERVICE_NAME=FREEPDB1)))'<<EOF
-    exec ords.enable_schema(true);
-    exit;
-EOF"
-
-    podman exec -d $orclImage /bin/bash -c "/home/oracle/ords/bin/ords --config /home/oracle/ords_config serve > /dev/null 2>&1; sleep 10"
-    sleep 10
-    podman exec -d $orclImage /bin/bash -c "/usr/bin/ps -ef | grep -i ords"
-
+    createUser
+    logInfo "Opening SQLPlus session as $ORACLE_USER..."
+    podman exec -it $orclImage bash -c "source /home/oracle/.bashrc; sqlplus $ORACLE_USER/$ORACLE_PASS@'(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=127.0.0.1)(PORT=1521))(CONNECT_DATA=(SERVER=DEDICATED)(SERVICE_NAME=$ORACLE_PDB)))'"
 }
 
-# Menu item
-function stopORDS()
-{
-    export orclImage=$(podman ps --no-trunc --format "table {{.ID}}\t {{.Names}}\t" | grep -i Oracle_DB_Container  | awk '{print $2}' )
-    podman exec $orclImage /bin/bash -c "for i in $(ps -ef | grep ords | awk '{print $2}'); do echo $i; kill -9 $i; done"
+# Set Oracle password
+setOrclPwd() {
+    checkPodman
+    export orclRunning=$(getContainerId)
+    
+    if [ -z "$orclRunning" ]; then
+        logError "Oracle container is not running."
+        return 1
+    fi
+    
+    logInfo "Setting Oracle password..."
+    podman exec $orclRunning /home/oracle/setPassword.sh $ORACLE_SYS_PASS
 }
 
-# Menu item
-function setupORDS()
-{
+# Install MongoDB tools
+installMongoTools() {
+    export orclImage=$(getContainerId)
+    
+    if [ -z "$orclImage" ]; then
+        logError "Oracle container is not running."
+        return 1
+    fi
+    
+    logInfo "Installing MongoDB tools..."
+    podman exec -i -u 0 $orclImage /usr/bin/bash -c "echo '[mongodb-org-8.0]
+name=MongoDB Repository
+baseurl=https://repo.mongodb.org/yum/redhat/8/mongodb-org/8.0/aarch64/
+gpgcheck=1
+enabled=1
+gpgkey=https://pgp.mongodb.com/server-8.0.asc' >>/etc/yum.repos.d/mongodb-org-8.0.repo"
+
+    podman exec -i -u 0 $orclImage /usr/bin/yum install -y mongodb-mongosh
+    logSuccess "MongoDB tools installed successfully."
+}
+
+# Install utilities
+installUtils() {
+    logInfo "Installing useful tools after provisioning container..."
+    logWarning "Please be patient as this can take time given network latency."
 
     checkPodman
-    export orclImage=$(podman ps --no-trunc --format "table {{.ID}}\t {{.Names}}\t" | grep -i Oracle_DB_Container  | awk '{print $2}' )
-        
-    # make temp passwd file
-    podman exec -i -u 0 $orclImage /bin/bash -c "echo 'Oradoc_db1' > /tmp/orclpwd"
-
-    echo "Configuring ORDS..."
-
-    # user for ORDS
-    createMatt
+    export orclRunning=$(getContainerId)
     
-    # ORDS silent set up
-    podman exec -i $orclImage /bin/bash -c "/home/oracle/ords/bin/ords --config /home/oracle/ords_config install --admin-user SYS --db-hostname localhost --db-port 1521 --db-servicename FREEPDB1 --log-folder /tmp/ --feature-sdw true --feature-db-api true --feature-rest-enabled-sql true --password-stdin </tmp/orclpwd"
+    if [ -z "$orclRunning" ]; then
+        logError "Oracle container is not running."
+        return 1
+    fi
     
-    # ORDS manual set up
-    # podman exec -i $orclImage /home/oracle/ords/bin/ords --config /home/oracle/ords_config install
+    # workaround for ol repo issues
+    logInfo "Configuring YUM repositories..."
+    podman exec -it -u 0 $orclRunning /bin/bash -c "/usr/bin/touch /etc/yum/vars/ociregion"
+    podman exec -it -u 0 $orclRunning /bin/bash -c "/usr/bin/echo > /etc/yum/vars/ociregion"
 
-    # ORDS uninstall
-    # /home/oracle/ords/bin/ords uninstall --admin-user SYS --db-hostname localhost --db-port 1521 --db-servicename FREEPDB1 --log-folder /tmp/ --force --password-stdin </tmp/orclpwd
+    # Add sudo access for oracle user
+    podman exec -it -u 0 $orclRunning /bin/bash -c "/usr/bin/echo 'oracle ALL=(ALL) NOPASSWD: ALL' >>/etc/sudoers"
 
-    #stopORDS
+    # Install EPEL repository
+    logInfo "Installing EPEL repository..."
+    podman exec -it -u 0 $orclRunning /usr/bin/rpm -ivh https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm
+    podman exec -it -u 0 $orclRunning /usr/bin/yum update -y
 
-    # set mongoapi configs
+    # Install required packages
+    logInfo "Installing required packages..."
+    podman exec -it -u 0 $orclRunning /usr/bin/yum install -y sudo which java-17-openjdk wget htop lsof zip unzip rlwrap git
+   
+    # Download and install ORDS
+    logInfo "Downloading and installing ORDS..."
+    podman exec $orclRunning /usr/bin/wget -O /home/oracle/ords.zip https://download.oracle.com/otn_software/java/ords/ords-latest.zip
+    podman exec $orclRunning /usr/bin/unzip /home/oracle/ords.zip -d /home/oracle/ords/
+    
+    # Install MongoDB tools
+    installMongoTools
+
+    # Install personal tools
+    logInfo "Installing personal tools..."
+    podman exec $orclRunning /usr/bin/wget -O /tmp/PS1.sh https://raw.githubusercontent.com/mattdee/orclDocker/main/PS1.sh
+    podman exec $orclRunning /bin/bash /tmp/PS1.sh
+    podman exec $orclRunning /usr/bin/wget -O /opt/oracle/product/23ai/dbhomeFree/sqlplus/admin/glogin.sql https://raw.githubusercontent.com/mattdee/orclDocker/main/glogin.sql
+    
+    # Set Oracle password
+    setOrclPwd
+    
+    logSuccess "Utilities installation complete!"
+}
+
+# Copy file into container
+copyIn() {
+    checkPodman
+    export orclRunning=$(getContainerId)
+    
+    if [ -z "$orclRunning" ]; then
+        logError "Oracle container is not running."
+        return 1
+    fi
+    
+    read -p "Please enter the ABSOLUTE PATH to the file you want copied: " thePath
+    read -p "Please enter the FILE NAME you want copied: " theFile
+    
+    logInfo "Copying file: $thePath/$theFile into container..."
+    podman cp $thePath/$theFile $orclRunning:/tmp
+    
+    if [ $? -eq 0 ]; then
+        logSuccess "File copied successfully to /tmp/$theFile in the container."
+    else
+        logError "Failed to copy file into container."
+    fi
+}
+
+# Copy file out of container
+copyOut() {
+    checkPodman
+    export orclRunning=$(getContainerId)
+    
+    if [ -z "$orclRunning" ]; then
+        logError "Oracle container is not running."
+        return 1
+    fi
+    
+    read -p "Please enter the ABSOLUTE PATH in the CONTAINER to the file you want copied to host: " thePath
+    read -p "Please enter the FILE NAME in the CONTAINER you want copied: " theFile
+    
+    logInfo "Copying file: $orclRunning:$thePath/$theFile to host..."
+    podman cp $orclRunning:$thePath/$theFile /tmp/
+    
+    if [ $? -eq 0 ]; then
+        logSuccess "File copied successfully to /tmp/$theFile on your host."
+    else
+        logError "Failed to copy file from container."
+    fi
+}
+
+# Setup ORDS
+setupORDS() {
+    checkPodman
+    export orclImage=$(getContainerId)
+    
+    if [ -z "$orclImage" ]; then
+        logError "Oracle container is not running."
+        return 1
+    fi
+    
+    # Create temp password file
+    logInfo "Creating temporary password file..."
+    podman exec -i -u 0 $orclImage /bin/bash -c "echo '$ORACLE_SYS_PASS' > /tmp/orclpwd"
+
+    logInfo "Configuring ORDS..."
+
+    # Create user for ORDS
+    createUser
+    
+    # ORDS silent setup
+    logInfo "Installing ORDS..."
+    podman exec -i $orclImage /bin/bash -c "/home/oracle/ords/bin/ords --config /home/oracle/ords_config install --admin-user SYS --db-hostname localhost --db-port 1521 --db-servicename $ORACLE_PDB --log-folder /tmp/ --feature-sdw true --feature-db-api true --feature-rest-enabled-sql true --password-stdin </tmp/orclpwd"
+    
+    # Set MongoDB API configs
+    logInfo "Configuring MongoDB API settings..."
     podman exec -it $orclImage /home/oracle/ords/bin/ords --config /home/oracle/ords_config config set mongo.enabled true
-    # podman exec -it $orclImage /home/oracle/ords/bin/ords --config /home/oracle/ords_config config set mongo.tls false
     podman exec -it $orclImage /home/oracle/ords/bin/ords --config /home/oracle/ords_config config set mongo.port 27017
+    
+    # Display MongoDB API settings
     podman exec -it $orclImage /home/oracle/ords/bin/ords --config /home/oracle/ords_config config info mongo.enabled
     podman exec -it $orclImage /home/oracle/ords/bin/ords --config /home/oracle/ords_config config info mongo.port
     podman exec -it $orclImage /home/oracle/ords/bin/ords --config /home/oracle/ords_config config info mongo.tls
 
+    # Start ORDS
     serveORDS
 
-    # set db privs for user
-    podman exec -it $orclImage bash -c "source /home/oracle/.bashrc; sqlplus sys/Oradoc_db1@'(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=127.0.0.1)(PORT=1521))
-    (CONNECT_DATA=(SERVER=DEDICATED)(SERVICE_NAME=FREEPDB1)))' as sysdba <<EOF
-    grant soda_app, create session, create table, create view, create sequence, create procedure, create job, unlimited tablespace to matt;
+    # Set database privileges for user
+    logInfo "Setting database privileges..."
+    podman exec -it $orclImage bash -c "source /home/oracle/.bashrc; sqlplus sys/$ORACLE_SYS_PASS@'(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=127.0.0.1)(PORT=1521))(CONNECT_DATA=(SERVER=DEDICATED)(SERVICE_NAME=$ORACLE_PDB)))' as sysdba <<EOF
+    grant soda_app, create session, create table, create view, create sequence, create procedure, create job, unlimited tablespace to $ORACLE_USER;
     exit;
 EOF"
     
-    # ords enable the matt schema
-    podman exec -it $orclImage bash -c "source /home/oracle/.bashrc; sqlplus matt/matt@'(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=127.0.0.1)(PORT=1521))
-    (CONNECT_DATA=(SERVER=DEDICATED)(SERVICE_NAME=FREEPDB1)))'<<EOF
+    # Enable ORDS for user schema
+    logInfo "Enabling ORDS for $ORACLE_USER schema..."
+    podman exec -it $orclImage bash -c "source /home/oracle/.bashrc; sqlplus $ORACLE_USER/$ORACLE_PASS@'(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=127.0.0.1)(PORT=1521))(CONNECT_DATA=(SERVER=DEDICATED)(SERVICE_NAME=$ORACLE_PDB)))'<<EOF
     exec ords.enable_schema(true);
     exit;
 EOF"
 
+    logSuccess "ORDS setup complete!"
 }
 
-# Menu item
-function checkMongoAPI()
-{
-    # test mongo connections in the container
-    echo "Checking MongoDB API health..."
-    export orclImage=$(podman ps --no-trunc --format "table {{.ID}}\t {{.Names}}\t" | grep -i Oracle_DB_Container  | awk '{print $2}' )
-    podman exec -it $orclImage bash -c "mongosh --tlsAllowInvalidCertificates 'mongodb://matt:matt@127.0.0.1:27017/matt?authMechanism=PLAIN&ssl=true&retryWrites=false&loadBalanced=true'<<EOF
+# Serve ORDS
+serveORDS() {
+    logInfo "Starting ORDS in container..."
+    export orclImage=$(getContainerId)
+    
+    if [ -z "$orclImage" ]; then
+        logError "Oracle container is not running."
+        return 1
+    fi
+    
+    # Set database privileges
+    podman exec -it $orclImage bash -c "source /home/oracle/.bashrc; sqlplus sys/$ORACLE_SYS_PASS@'(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=127.0.0.1)(PORT=1521))(CONNECT_DATA=(SERVER=DEDICATED)(SERVICE_NAME=$ORACLE_PDB)))' as sysdba <<EOF
+    grant soda_app, create session, create table, create view, create sequence, create procedure, create job, unlimited tablespace to $ORACLE_USER;
+    exit;
+EOF"
+    
+    # Enable ORDS for schema
+    podman exec -it $orclImage bash -c "source /home/oracle/.bashrc; sqlplus $ORACLE_USER/$ORACLE_PASS@'(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=127.0.0.1)(PORT=1521))(CONNECT_DATA=(SERVER=DEDICATED)(SERVICE_NAME=$ORACLE_PDB)))'<<EOF
+    exec ords.enable_schema(true);
+    exit;
+EOF"
+
+    # Start ORDS service
+    podman exec -d $orclImage /bin/bash -c "/home/oracle/ords/bin/ords --config /home/oracle/ords_config serve > /dev/null 2>&1; sleep 10"
+    sleep 5
+    
+    # Verify ORDS is running
+    podman exec $orclImage /bin/bash -c "/usr/bin/ps -ef | grep -i ords"
+    
+    logSuccess "ORDS started successfully!"
+}
+
+# Stop ORDS
+stopORDS() {
+    export orclImage=$(getContainerId)
+    
+    if [ -z "$orclImage" ]; then
+        logError "Oracle container is not running."
+        return 1
+    fi
+    
+    logInfo "Stopping ORDS..."
+    podman exec $orclImage /bin/bash -c "for i in $(ps -ef | grep ords | awk '{print $2}'); do echo $i; kill -9 $i; done"
+    logSuccess "ORDS stopped successfully!"
+}
+
+# Check MongoDB API
+checkMongoAPI() {
+    # Test MongoDB connections in the container
+    logInfo "Checking MongoDB API health..."
+    export orclImage=$(getContainerId)
+    
+    if [ -z "$orclImage" ]; then
+        logError "Oracle container is not running."
+        return 1
+    fi
+    
+    logInfo "Creating test collection..."
+    podman exec -it $orclImage bash -c "mongosh --tlsAllowInvalidCertificates 'mongodb://$ORACLE_USER:$ORACLE_PASS@127.0.0.1:27017/$ORACLE_USER?authMechanism=PLAIN&ssl=true&retryWrites=false&loadBalanced=true'<<EOF
     db.createCollection('test123');
 EOF"
     
-    podman exec -it $orclImage bash -c "mongosh --tlsAllowInvalidCertificates 'mongodb://matt:matt@127.0.0.1:27017/matt?authMechanism=PLAIN&ssl=true&retryWrites=false&loadBalanced=true'<<EOF
+    logInfo "Inserting test document..."
+    podman exec -it $orclImage bash -c "mongosh --tlsAllowInvalidCertificates 'mongodb://$ORACLE_USER:$ORACLE_PASS@127.0.0.1:27017/$ORACLE_USER?authMechanism=PLAIN&ssl=true&retryWrites=false&loadBalanced=true'<<EOF
     db.test123.insertOne({ name: 'Matt DeMarco', email: 'matthew.demarco@oracle.com', notes: 'It is me' });
 EOF"
 
-    podman exec -it $orclImage bash -c "mongosh --tlsAllowInvalidCertificates 'mongodb://matt:matt@127.0.0.1:27017/matt?authMechanism=PLAIN&ssl=true&retryWrites=false&loadBalanced=true'<<EOF
+    logInfo "Reading test document..."
+    podman exec -it $orclImage bash -c "mongosh --tlsAllowInvalidCertificates 'mongodb://$ORACLE_USER:$ORACLE_PASS@127.0.0.1:27017/$ORACLE_USER?authMechanism=PLAIN&ssl=true&retryWrites=false&loadBalanced=true'<<EOF
     db.test123.find().pretty();
 EOF"
     
+    logSuccess "MongoDB API check complete!"
 }
 
-
-function setupAPEX()
-{
-    # reference
-    # https://docs.oracle.com/en/database/oracle/apex/23.2/htmig/downloading-installing-apex.html#GUID-7E432C6D-CECC-4977-B183-3C654380F7BF
+# Setup APEX (function stub for future implementation)
+setupAPEX() {
+    logInfo "APEX setup is not fully implemented yet."
+    
     checkPodman
-    export orclImage=$(podman ps --no-trunc --format "table {{.ID}}\t {{.Names}}\t" | grep -i Oracle_DB_Container  | awk '{print $2}' )
+    export orclImage=$(getContainerId)
+    
+    if [ -z "$orclImage" ]; then
+        logError "Oracle container is not running."
+        return 1
+    fi
+    
+    # Reference steps
+    logInfo "Reference steps for APEX setup:"
+    logInfo "1. Download APEX"
+    logInfo "2. Install APEX using SQL scripts"
+    logInfo "3. Configure APEX users"
     
     # get latest APEX release
     podman exec $orclRunning /usr/bin/wget -O /home/oracle/apex-latest.zip https://download.oracle.com/otn_software/apex/apex-latest.zip
 
-    # sysdba sql statement setup steps
-    # @apexins.sql SYSAUX SYSAUX TEMP /i/
-    # @apex_rest_config.sql Oracle Oracle
-    # ALTER USER APEX_LISTENER IDENTIFIED BY Oracle ACCOUNT UNLOCK;
-    # ALTER USER APEX_PUBLIC_USER IDENTIFIED BY Oracle ACCOUNT UNLOCK;
-    # ALTER USER APEX_REST_PUBLIC_USER IDENTIFIED BY Oracle ACCOUNT UNLOCK;
-
-
-
+    # Show pending steps
+    logInfo "Implementation pending for:"
+    logInfo "- @apexins.sql SYSAUX SYSAUX TEMP /i/"
+    logInfo "- @apex_rest_config.sql Oracle Oracle"
+    logInfo "- ALTER USER APEX_LISTENER IDENTIFIED BY Oracle ACCOUNT UNLOCK;"
+    logInfo "- ALTER USER APEX_PUBLIC_USER IDENTIFIED BY Oracle ACCOUNT UNLOCK;"
+    logInfo "- ALTER USER APEX_REST_PUBLIC_USER IDENTIFIED BY Oracle ACCOUNT UNLOCK;"
 }
 
-# Process arguments to bypass the menu
+#===========================
+# Main Program
+#===========================
+
+    # Process arguments to bypass the menu
 case "$1" in
     "start")
-        echo "Starting container..."
+        logInfo "Starting container..."
         startOracle
+        exit 0
         ;;
     "stop")
-        echo "Stopping container..."
+        logInfo "Stopping container..."
         stopOracle
+        exit 0
         ;;
     "restart")
-        echo "Restarting container..."
+        logInfo "Restarting container..."
         stopOracle
         startOracle
+        exit 0
         ;;
     "bash")
-        echo "Attempting bash access..."
+        logInfo "Attempting bash access..."
         bashAccess
+        exit 0
         ;;
     "root")
-        echo "Attempting root access..."
+        logInfo "Attempting root access..."
         rootAccess
+        exit 0
         ;;
     "sql")
-        echo "Attempting SQLPlus access..."
-        sqlPlususer
+        logInfo "Attempting SQLPlus access..."
+        sqlPlusUser
+        exit 0
         ;;
     "ords")
-        echo "Attempting to start ORDS..."
+        logInfo "Attempting to start ORDS..."
         serveORDS
+        exit 0
         ;;
-    "mongoAPI")
-        echo "Attempting to check Mongo API status..."
-        checkMongo
+    "mongoapi")
+        logInfo "Attempting to check Mongo API status..."
+        checkMongoAPI
+        exit 0
         ;;
     "help")
-        echo "Providing help..."
-        helpMe
+        echo -e "${BLUE}===========================================================================${NC}"
+        echo -e "${BLUE}          Oracle Database Free Edition Management Script                   ${NC}"
+        echo -e "${BLUE}===========================================================================${NC}"
+        echo 
+        echo "Usage: $0 [command]"
+        echo 
+        echo "Container Management Commands:"
+        echo "  start    - Start Oracle container"
+        echo "  stop     - Stop Oracle container"
+        echo "  restart  - Restart Oracle container"
+        echo "  bash     - Bash access to container"
+        echo "  root     - Root access to container"
+        echo 
+        echo "Database Access Commands:"
+        echo "  sql      - SQLPlus user connection"
+        echo "  ords     - Start ORDS"
+        echo "  mongoapi - Check MongoDB API connection"
+        echo "  help     - Show this help message"
+        echo 
+        echo "If no command is provided, the script will start in interactive menu mode."
+        echo -e "${BLUE}===========================================================================${NC}"
+        exit 0
         ;;
     "")
-        echo "No args...proceed with menu"
-        #sleep 3
+        logInfo "No args provided. Starting menu interface..."
         ;;
     *)
-        echo "Invalid argument: $1"
+        logError "Invalid argument: $1"
+        logInfo "Run '$0 help' for usage information."
+        exit 1
         ;;
 esac
 
-
-
-# Let's go to work
-# Initialize the invalid attempt counter to escape the while loop
-INVALID_COUNT=0  
-
+# Main menu loop
 while true; do
-startUp
-case $menuChoice in
-    1) 
-        startOracle
-        ;;
-    2) 
-        stopOracle
-        ;;
-    3)
-        bashAccess
-        ;;   
-    4)
-        sqlPlusnolog
-        ;;
-    5) 
-        sysDba
-        ;;
-    6)
-        sqlPlususer
-        ;;
-    7)
-        doNothing
-        ;;
-    8)  
-        cleanVolumes
-        ;;
-    9)
-        rootAccess
-        ;;
-    10) 
-        installUtils
-        ;;
-    11)
-        copyIn
-        ;;
-    12)
-        copyOut
-        ;;
-    13)
-        removeContainer
-        ;;
-    14)
-        setupORDS
-        ;;
-    15)
-        serveORDS
-        ;;
-    16)
-        checkMongoAPI
-        ;;
-    *) 
-        badChoice
-        ;;
+    displayMenu
+    
+    case $menuChoice in
+        1) 
+            startOracle
+            ;;
+        2) 
+            stopOracle
+            ;;
+        3)
+            bashAccess
+            ;;   
+        4)
+            rootAccess
+            ;;
+        5) 
+            removeContainer
+            ;;
+        6)
+            installUtils
+            ;;
+        7)
+            copyIn
+            ;;
+        8)
+            copyOut
+            ;;
+        9)  
+            cleanVolumes
+            ;;
+        10)
+            doNothing
+            ;;
+        11)
+            sqlPlusNolog
+            ;;
+        12)
+            sqlPlusUser
+            ;;
+        13)
+            sysDba
+            ;;
+        14)
+            setupORDS
+            ;;
+        15)
+            serveORDS
+            ;;
+        16)
+            checkMongoAPI
+            ;;
+        *) 
+            badChoice
+            ;;
     esac
+    
+    # Reset count after a valid choice
+    if [[ $menuChoice =~ ^[1-9]|1[0-6]$ ]]; then
+        INVALID_COUNT=0
+    fi
+    
+    # Pause after each operation to view results
+    if [[ $menuChoice != 10 && $menuChoice =~ ^[1-9]|1[0-6]$ ]]; then
+        echo
+        read -p "Press Enter to continue..." dummy
+    fi
 done
